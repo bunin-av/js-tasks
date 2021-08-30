@@ -31,7 +31,7 @@ function rejectAfterSleep(ms, msg) {
 
 const timeout = (promise, ms) => {
   let isResolved = false
-  let data = promise.then(data => {
+  const data = promise.then(data => {
     isResolved = true
     return data
   })
@@ -147,8 +147,7 @@ function promiseRace(promiseArray) {
           rej(e)
         }
       })()
-      return acc
-    }, [])
+    }, []) // почему не работает без [] ??
   })
 }
 
@@ -158,7 +157,6 @@ function promiseRace2(promiseArray) {
       el
         .then(res)
         .catch(rej)
-      return acc
     }, [])
   })
 }
@@ -174,14 +172,54 @@ function promiseRace3(promiseArray) {
 }
 
 
-promiseRace3([rejectAfterSleep(1000, 'ERROR'), sleep2(5000), sleep2(5000),]).then(console.log).catch(console.log)
+promiseRace([rejectAfterSleep(1000, 'ERROR'), sleep2(5000), sleep2(5000),]).then(console.log).catch(console.log)
 
-promiseRace3([sleep2(2000), sleep2(3000), sleep2(5000),]).then(console.log).catch(console.log)
+promiseRace([sleep2(2000), sleep2(3000), sleep2(5000),]).then(console.log).catch(console.log)
 
 // 07- ## once
 //
-// > Необходимо написать функцию, которая бы добавлял обработчик события на заданный элемент и возвращала Promise. Promise должен зарезолвится при срабатывании события. В качестве значения Promise должен возвращать объект события.
+// > Необходимо написать функцию, которая бы добавляла обработчик события на заданный элемент и возвращала Promise. Promise должен зарезолвится при срабатывании события. В качестве значения Promise должен возвращать объект события.
 
-const addListener = (element)=> {
-  document.addEventListener()
+const addListener = (element, event) => {
+  return new Promise(res => {
+    element.addEventListener(event, res)
+  })
 }
+
+//08- # promisify
+//
+// > Необходимо написать функцию, которая бы принимала функцию ожидающую callback и возвращала новую функцию. Новая функция вместо callback должна возвращать Promise. Предполагается, что исходная функция принимает callback последним параметром, т. е. если функция принимает другие аргументы, то они идут ДО callback. Сам callback первым параметром принимает объект ошибки или null, а вторым возвращаемое значение (если нет ошибки).
+//
+
+
+function promisify(fn) {
+  return function (file) {
+    return new Promise((res, rej) => {
+      fn(file, (err, result) => {
+        if (err) return rej(err)
+        res(result)
+      })
+    })
+  };
+}
+
+const fs = {
+  readFile(file, cb) {
+    setTimeout(() => {
+      const result = Math.random()
+      if (result < 0.5) return cb('Error loading file')
+      cb(null, "You Don't Know JS: Async & Performance")
+    },1000)
+  }
+}
+
+function openFile(file, cb) {
+  fs.readFile(file, cb);
+}
+
+const openFilePromise = promisify(openFile);
+
+openFilePromise('foo.txt').then(
+  console.log,
+  console.error
+);
