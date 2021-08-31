@@ -45,8 +45,18 @@ const timeout = (promise, ms) => {
   })
 }
 
+const timeout2 = (promise, ms) => {
+  return new Promise((res, rej) => {
+    promise.then(res, rej)
+    setTimeout(() => rej('Timeout'), ms)
+  })
+}
 
-// timeout(sleep(500), 600).then(console.log, console.log);
+const timeout3 = (promise, ms) => {
+  return Promise.race([rejectAfterSleep(ms, 'Timeout'), promise])
+}
+
+timeout2(sleep2(500), 400).then(console.log, console.log);
 
 // 04- ## all
 //
@@ -172,19 +182,27 @@ function promiseRace3(promiseArray) {
 }
 
 
-promiseRace([rejectAfterSleep(1000, 'ERROR'), sleep2(5000), sleep2(5000),]).then(console.log).catch(console.log)
-
-promiseRace([sleep2(2000), sleep2(3000), sleep2(5000),]).then(console.log).catch(console.log)
+// promiseRace([rejectAfterSleep(1000, 'ERROR'), sleep2(5000), sleep2(5000),]).then(console.log).catch(console.log)
+//
+// promiseRace([sleep2(2000), sleep2(3000), sleep2(5000),]).then(console.log).catch(console.log)
 
 // 07- ## once
 //
 // > Необходимо написать функцию, которая бы добавляла обработчик события на заданный элемент и возвращала Promise. Promise должен зарезолвится при срабатывании события. В качестве значения Promise должен возвращать объект события.
 
 const addListener = (element, event) => {
+  let cb
+
   return new Promise(res => {
-    element.addEventListener(event, res)
+    cb = res
+    element.addEventListener(event, cb)
   })
+    .then(data => {
+      element.removeEventListener(event, cb)
+      return data
+    })
 }
+
 
 //08- # promisify
 //
@@ -193,9 +211,9 @@ const addListener = (element, event) => {
 
 
 function promisify(fn) {
-  return function (file) {
+  return function (...files) {
     return new Promise((res, rej) => {
-      fn(file, (err, result) => {
+      fn(...files, (err, result) => {
         if (err) return rej(err)
         res(result)
       })
@@ -209,7 +227,7 @@ const fs = {
       const result = Math.random()
       if (result < 0.5) return cb('Error loading file')
       cb(null, "You Don't Know JS: Async & Performance")
-    },1000)
+    }, 1000)
   }
 }
 
