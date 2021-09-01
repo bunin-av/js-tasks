@@ -7,6 +7,12 @@ function sleep(ms) {
   })
 }
 
+function sleep2(ms) {
+  return new Promise(res => {
+    setTimeout(() => res('Resolved'), ms)
+  })
+}
+
 // sleep(200).then(() => {
 //     console.log('Я проснулся!');
 // });
@@ -29,21 +35,21 @@ function rejectAfterSleep(ms, msg) {
 
 // > Необходимо написать функцию, которая принимает объект Promise и некоторое количество миллисекунд и возвращает новый Promise. Если переданный Promise не успевает зарезолвится до истечения этого времени, то результирующий Promise должен быть зареджекчен с ошибкой new Error('Timeout').
 
-const timeout = (promise, ms) => {
-  let isResolved = false
-  const data = promise.then(data => {
-    isResolved = true
-    return data
-  })
-  return new Promise((res, rej) => {
-    setTimeout(() => {
-      if (isResolved) {
-        return res(data)
-      }
-      rej('Timeout')
-    }, ms)
-  })
-}
+// const timeout = (promise, ms) => {
+//   let isResolved = false
+//   const data = promise.then(data => {
+//     isResolved = true
+//     return data
+//   })
+//   return new Promise((res, rej) => {
+//     setTimeout(() => {
+//       if (isResolved) {
+//         return res(data)
+//       }
+//       rej('Timeout')
+//     }, ms)
+//   })
+// }
 
 const timeout2 = (promise, ms) => {
   return new Promise((res, rej) => {
@@ -56,49 +62,45 @@ const timeout3 = (promise, ms) => {
   return Promise.race([rejectAfterSleep(ms, 'Timeout'), promise])
 }
 
-timeout2(sleep2(500), 400).then(console.log, console.log);
+// timeout2(sleep2(500), 400).then(console.log, console.log);
 
 // 04- ## all
 //
 // > Необходимо написать функцию, которая идентична Promise.all.
 
-function promiseAll(promisesArray) {
-  return new Promise(function (res, rej) {
-    promisesArray.reduce((acc, el) => {
-      (async function () {
-        try {
-          acc.push(await el)
-          if (acc.length === promisesArray.length) res(acc)
-        } catch (e) {
-          rej(e)
-        }
-      })()
-      return acc
-    }, [])
-  })
-}
 
-function promiseAll2(promisesArray) {
-  return new Promise(function (res, rej) {
-    promisesArray.reduce((acc, el) => {
-      el
-        .then(r => {
-          acc.push(r)
-          if (acc.length === promisesArray.length) res(acc)
+function promiseAll(promises) {
+  return new Promise((res, rej) => {
+    let resultArray = []
+    for (const promise of promises) {
+      promise
+        .then(result => {
+          resultArray.push(result)
+          if (resultArray.length === promises.length) res(resultArray)  // эту проверку лучше делать в этом then или в следующем после catch или без разницы?
         })
         .catch(rej)
-      return acc
-    }, [])
+    }
   })
 }
 
-function sleep2(ms) {
-  return new Promise(res => {
-    setTimeout(() => res('Yo'), ms)
+
+function promiseAll2(promises) {
+  return new Promise((res, rej) => {
+    let resultArray = []
+    for (let el of promises) {
+      (async () => {
+        try {
+          resultArray.push(await el)
+        } catch (e) {
+          rej(e)
+        } finally {
+          if (resultArray.length === promises.length) res(resultArray) // тут лучше проверять или в try?
+        }
+      })()
+    }
   })
 }
 
-//
 // promiseAll2([rejectAfterSleep(1000, 'ERROR'), sleep2(300), sleep2(5000),]).then(console.log).catch(console.log)
 //
 // promiseAll2([sleep2(2000), sleep2(300), sleep2(5000),]).then(console.log).catch(console.log)
@@ -107,82 +109,42 @@ function sleep2(ms) {
 //
 // > Необходимо написать функцию, которая идентична Promise.allSettled.
 
-function promiseAllSettled(promisesArray) {
-  return new Promise(function (res) {
-    promisesArray.reduce((acc, el) => {
-      (async function () {
-        try {
-          acc.push(await el)
-        } catch (e) {
-          acc.push(e)
-        } finally {
-          if (acc.length === promisesArray.length) res(acc)
-        }
-      })()
-      return acc
-    }, [])
-  })
-}
-
-function promiseAllSettled2(promisesArray) {
-  return new Promise(function (res) {
-    promisesArray.reduce((acc, el) => {
-      el
-        .then(r => acc.push(r))
-        .catch(e => acc.push(e))
+const promiseAllSettled = (promises) => {
+  return new Promise(res => {
+    let resultArray = []
+    for (const promise of promises) {
+      promise
+        .then(result => resultArray.push({status: 'resolved', value: result}))
+        .catch(e => resultArray.push({status: 'rejected', reason: e}))
         .then(() => {
-          if (acc.length === promisesArray.length) res(acc)
+          if (resultArray.length === promises.length) res(resultArray)
         })
-      return acc
-    }, [])
+    }
   })
 }
 
 
-// promiseAllSettled2([rejectAfterSleep(2000, 'ERROR'), sleep2(300), sleep2(5000),]).then(console.log).catch(console.log)
+// promiseAllSettled([rejectAfterSleep(2000, 'ERROR'), sleep2(300), sleep2(5000),]).then(console.log).catch(console.log)
 //
-// promiseAllSettled2([sleep2(2000), sleep2(300), sleep2(5000),]).then(console.log).catch(console.log)
+// promiseAllSettled([sleep2(2000), sleep2(300), sleep2(5000),]).then(console.log).catch(console.log)
 
 // 06- ## race
 //
 // > Необходимо написать функцию, которая идентична Promise.race.
 
-function promiseRace(promiseArray) {
-  return new Promise((res, rej) => {
-    promiseArray.reduce((acc, el) => {
-      (async () => {
-        try {
-          res(await el)
-        } catch (e) {
-          rej(e)
-        }
-      })()
-    }, []) // почему не работает без [] ??
-  })
-}
 
-function promiseRace2(promiseArray) {
+const promiseRace = (promises) => {
   return new Promise((res, rej) => {
-    promiseArray.reduce((acc, el) => {
-      el
+    for (const promise of promises) {
+      promise
         .then(res)
         .catch(rej)
-    }, [])
-  })
-}
-
-function promiseRace3(promiseArray) {
-  return new Promise((res, rej) => {
-    promiseArray.forEach(el => {
-      el
-        .then(res)
-        .catch(rej)
-    })
+    }
   })
 }
 
 
-// promiseRace([rejectAfterSleep(1000, 'ERROR'), sleep2(5000), sleep2(5000),]).then(console.log).catch(console.log)
+// promiseRace([rejectAfterSleep(1000, 'ERROR'), sleep2(500), sleep2(5000),]).then(console.log).catch(console.log)
 //
 // promiseRace([sleep2(2000), sleep2(3000), sleep2(5000),]).then(console.log).catch(console.log)
 
@@ -194,7 +156,7 @@ const addListener = (element, event) => {
   let cb
 
   return new Promise(res => {
-    cb = res
+    cb = res // только такой способ придумал, чтобы можно было потом удалить. Можно как-то иначе?)  И еще.. в каких случаях на практике может быть нужно добавлять обработчик с промисом?
     element.addEventListener(event, cb)
   })
     .then(data => {
@@ -237,7 +199,7 @@ function openFile(file, cb) {
 
 const openFilePromise = promisify(openFile);
 
-openFilePromise('foo.txt').then(
-  console.log,
-  console.error
-);
+// openFilePromise('foo.txt').then(
+//   console.log,
+//   console.error
+// );
