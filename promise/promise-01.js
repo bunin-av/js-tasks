@@ -13,6 +13,12 @@ function sleep2(ms) {
   })
 }
 
+function sleep3(ms) {
+  return () => new Promise(res => {
+    setTimeout(() => res('Resolved'), ms)
+  })
+}
+
 // sleep(200).then(() => {
 //     console.log('Я проснулся!');
 // });
@@ -203,3 +209,58 @@ const openFilePromise = promisify(openFile);
 //   console.log,
 //   console.error
 // );
+
+
+// > Необходимо написать статический метод для Promise, который бы работал как Promise.all, но с возможностью задания лимита на выполнения "одновременных" задач. В качестве первого параметра, метод должен принимать Iterable объект с функциями, которые возвращают Promise. Сам метод также возвращает Promise.
+
+
+Promise.allLimit = function (iterable) {
+  if (!Promise.hasOwnProperty('_limit')){
+    Object.defineProperty(Promise, '_limit', {
+      enumerable: false,
+      configurable: false,
+      writable: true,
+      value: 0
+    });
+  }
+  return new Promise((res, rej) => {
+    if (Promise._limit >= 2) return
+    ++Promise._limit
+    let resultArray = []
+    for (const fn of iterable) {
+      fn()
+        .then(r => {
+          resultArray.push(r)
+          if (resultArray.length === (iterable.length || iterable.size)) {
+            res(resultArray)
+          }
+        })
+        .catch(rej)
+    }
+  })
+    .then(r => {
+      --Promise._limit
+      return r
+    })
+}
+
+// Promise.allLimit([
+//   fetch.bind(null, 'url1'),
+//   fetch.bind(null, 'url2'),
+//   fetch.bind(null, 'url3'),
+//   fetch.bind(null, 'url4')
+// ], 2).then(([data1, data2, data3, data4]) => {
+//   console.log(data1, data2, data3, data4);
+// })
+Promise.allLimit([
+  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
+], 2).then(console.log).catch(console.error)
+Promise.allLimit([
+  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
+], 2).then(console.log).catch(console.error)
+Promise.allLimit([
+  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
+], 2).then(console.log).catch(console.error)
+Promise.allLimit([
+  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
+], 2).then(console.log).catch(console.error)
