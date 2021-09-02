@@ -267,33 +267,58 @@ const openFilePromise = promisify(openFile);
 //     })
 // }
 
-Promise.allLimit = function (iterable) {
+// Promise.allLimit = function (iterable, limit) {
+//   const arr = [...iterable]
+//   let resultArray = new Array(arr.length)
+//   let index = 0
+//
+//   return new Promise((res, rej) => {
+//     const fn = () => {
+//       while ((index !== arr.length)) {
+//         // console.log('limit', limit)
+//         if (limit <= 0) return
+//         limit--
+//         arr[index]()
+//           .then(r => {
+//             resultArray[index] = r
+//             limit++
+//             // console.log(r)
+//             fn()
+//             if (arr.length === resultArray.length) res(resultArray)
+//           })
+//           .catch(rej)
+//         index++
+//       }
+//     }
+//     fn()
+//   })
+// }
+
+Promise.allLimit = function (iterable, limit) {
   const arr = [...iterable]
-  let limit = 2
-  let resultArray = []
-  let index = 0
+  let resultArray = new Array(arr.length)
+  let idx = 0
+  let amount = 0
 
   return new Promise((res, rej) => {
-    const fn = () => {
-      while ((index !== arr.length)) {
-        // console.log('limit', limit)
-        if (limit <= 0) return
-        limit--
-        arr[index]()
+      const fn = (i) => {
+        if(arr[i]) arr[i]()
           .then(r => {
-            resultArray.push(r)
-            limit++
-            // console.log(r)
-            fn()
-            if (arr.length === resultArray.length) res(resultArray)
+            resultArray[i] = r
+            amount++
+            fn(idx++)
+            if (amount === arr.length) res(resultArray)
           })
           .catch(rej)
-        index++
+      }
+
+      for (idx; idx < limit ; idx++) {
+        fn(idx)
       }
     }
-    fn()
-  })
+  )
 }
+
 
 // Promise.allLimit([
 //   fetch.bind(null, 'url1'),
@@ -304,7 +329,7 @@ Promise.allLimit = function (iterable) {
 //   console.log(data1, data2, data3, data4);
 // })
 Promise.allLimit([
-  sleep3(5000, '#1'), sleep3(2000, '#2'), sleep3(10000, '#3'), sleep3(3000, '#4')
+  sleep3(5000, '#1'), sleep3(2000, '#2'), sleep3(1000, '#3'), sleep3(5000, '#4')
 ], 2).then(console.log).catch(console.error)
 
 setInterval(() => {
