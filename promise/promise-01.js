@@ -13,9 +13,9 @@ function sleep2(ms) {
   })
 }
 
-function sleep3(ms) {
+function sleep3(ms, msg) {
   return () => new Promise(res => {
-    setTimeout(() => res('Resolved'), ms)
+    setTimeout(() => res('Resolved: ' + msg), ms)
   })
 }
 
@@ -29,6 +29,12 @@ function sleep3(ms) {
 
 function rejectAfterSleep(ms, msg) {
   return new Promise((_, rej) => {
+    setTimeout(() => rej(msg), ms)
+  })
+}
+
+function rejectAfterSleep2(ms, msg) {
+  return () => new Promise((_, rej) => {
     setTimeout(() => rej(msg), ms)
   })
 }
@@ -76,13 +82,15 @@ const timeout3 = (promise, ms) => {
 
 
 function promiseAll(promises) {
+  const arr = [...promises]
+
   return new Promise((res, rej) => {
     let resultArray = []
-    for (const promise of promises) {
+    for (const promise of arr) {
       promise
         .then(result => {
           resultArray.push(result)
-          if (resultArray.length === promises.length) res(resultArray)  // эту проверку лучше делать в этом then или в следующем после catch или без разницы?
+          if (resultArray.length === arr.length) res(resultArray)
         })
         .catch(rej)
     }
@@ -91,16 +99,17 @@ function promiseAll(promises) {
 
 
 function promiseAll2(promises) {
+  const arr = [...promises]
+
   return new Promise((res, rej) => {
     let resultArray = []
-    for (let el of promises) {
+    for (let el of arr) {
       (async () => {
         try {
           resultArray.push(await el)
+          if (resultArray.length === arr.length) res(resultArray)
         } catch (e) {
           rej(e)
-        } finally {
-          if (resultArray.length === promises.length) res(resultArray) // тут лучше проверять или в try?
         }
       })()
     }
@@ -116,14 +125,16 @@ function promiseAll2(promises) {
 // > Необходимо написать функцию, которая идентична Promise.allSettled.
 
 const promiseAllSettled = (promises) => {
+  const arr = [...promises]
+
   return new Promise(res => {
     let resultArray = []
-    for (const promise of promises) {
+    for (const promise of arr) {
       promise
         .then(result => resultArray.push({status: 'resolved', value: result}))
         .catch(e => resultArray.push({status: 'rejected', reason: e}))
         .then(() => {
-          if (resultArray.length === promises.length) res(resultArray)
+          if (resultArray.length === arr.length) res(resultArray)
         })
     }
   })
@@ -140,8 +151,10 @@ const promiseAllSettled = (promises) => {
 
 
 const promiseRace = (promises) => {
+  const arr = [...promises]
+
   return new Promise((res, rej) => {
-    for (const promise of promises) {
+    for (const promise of arr) {
       promise
         .then(res)
         .catch(rej)
@@ -171,6 +184,16 @@ const addListener = (element, event) => {
     })
 }
 
+const addListener2 = (element, event) => {
+  return new Promise(res => {
+    const cb = e => {
+      element.removeEventListener(event, cb)
+      res(e)
+    }
+    element.addEventListener(event, cb)
+  })
+}
+
 
 //08- # promisify
 //
@@ -179,9 +202,9 @@ const addListener = (element, event) => {
 
 
 function promisify(fn) {
-  return function (...files) {
+  return function (...args) {
     return new Promise((res, rej) => {
-      fn(...files, (err, result) => {
+      fn(...args, (err, result) => {
         if (err) return rej(err)
         res(result)
       })
@@ -214,34 +237,62 @@ const openFilePromise = promisify(openFile);
 // > Необходимо написать статический метод для Promise, который бы работал как Promise.all, но с возможностью задания лимита на выполнения "одновременных" задач. В качестве первого параметра, метод должен принимать Iterable объект с функциями, которые возвращают Promise. Сам метод также возвращает Promise.
 
 
+// Promise.allLimit = function (iterable) {
+//   if (!Promise.hasOwnProperty('_limit')){
+//     Object.defineProperty(Promise, '_limit', {
+//       enumerable: false,
+//       configurable: false,
+//       writable: true,
+//       value: 0
+//     });
+//   }
+//   return new Promise((res, rej) => {
+//     if (Promise._limit >= 2) return
+//     ++Promise._limit
+//     let resultArray = []
+//     for (const fn of iterable) {
+//       fn()
+//         .then(r => {
+//           resultArray.push(r)
+//           if (resultArray.length === (iterable.length || iterable.size)) {
+//             res(resultArray)
+//           }
+//         })
+//         .catch(rej)
+//     }
+//   })
+//     .then(r => {
+//       --Promise._limit
+//       return r
+//     })
+// }
+
 Promise.allLimit = function (iterable) {
-  if (!Promise.hasOwnProperty('_limit')){
-    Object.defineProperty(Promise, '_limit', {
-      enumerable: false,
-      configurable: false,
-      writable: true,
-      value: 0
-    });
-  }
+  const arr = [...iterable]
+  let limit = 2
+  let resultArray = []
+  let index = 0
+
   return new Promise((res, rej) => {
-    if (Promise._limit >= 2) return
-    ++Promise._limit
-    let resultArray = []
-    for (const fn of iterable) {
-      fn()
-        .then(r => {
-          resultArray.push(r)
-          if (resultArray.length === (iterable.length || iterable.size)) {
-            res(resultArray)
-          }
-        })
-        .catch(rej)
+    const fn = () => {
+      while ((index !== arr.length)) {
+        // console.log('limit', limit)
+        if (limit <= 0) return
+        limit--
+        arr[index]()
+          .then(r => {
+            resultArray.push(r)
+            limit++
+            // console.log(r)
+            fn()
+            if (arr.length === resultArray.length) res(resultArray)
+          })
+          .catch(rej)
+        index++
+      }
     }
+    fn()
   })
-    .then(r => {
-      --Promise._limit
-      return r
-    })
 }
 
 // Promise.allLimit([
@@ -253,14 +304,10 @@ Promise.allLimit = function (iterable) {
 //   console.log(data1, data2, data3, data4);
 // })
 Promise.allLimit([
-  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
+  sleep3(5000, '#1'), sleep3(2000, '#2'), sleep3(10000, '#3'), sleep3(3000, '#4')
 ], 2).then(console.log).catch(console.error)
-Promise.allLimit([
-  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
-], 2).then(console.log).catch(console.error)
-Promise.allLimit([
-  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
-], 2).then(console.log).catch(console.error)
-Promise.allLimit([
-  sleep3(100), sleep3(500), sleep3(1000), sleep3(700)
-], 2).then(console.log).catch(console.error)
+
+setInterval(() => {
+  console.log('1 sec')
+}, 1000)
+
