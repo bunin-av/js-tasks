@@ -234,7 +234,7 @@ const openFilePromise = promisify(openFile);
 // );
 
 
-// > Необходимо написать статический метод для Promise, который бы работал как Promise.all, но с возможностью задания лимита на выполнения "одновременных" задач. В качестве первого параметра, метод должен принимать Iterable объект с функциями, которые возвращают Promise. Сам метод также возвращает Promise.
+// > ** Необходимо написать статический метод для Promise, который бы работал как Promise.all, но с возможностью задания лимита на выполнения "одновременных" задач. В качестве первого параметра, метод должен принимать Iterable объект с функциями, которые возвращают Promise. Сам метод также возвращает Promise.
 
 
 // Promise.allLimit = function (iterable) {
@@ -296,13 +296,13 @@ const openFilePromise = promisify(openFile);
 
 Promise.allLimit = function (iterable, limit) {
   const arr = [...iterable]
-  let resultArray = new Array(arr.length)
+  const resultArray = new Array(arr.length)
   let idx = 0
   let amount = 0
 
   return new Promise((res, rej) => {
       const fn = (i) => {
-        if(arr[i]) arr[i]()
+        if (arr[i]) arr[i]()
           .then(r => {
             resultArray[i] = r
             amount++
@@ -312,7 +312,7 @@ Promise.allLimit = function (iterable, limit) {
           .catch(rej)
       }
 
-      for (idx; idx < limit ; idx++) {
+      for (idx; idx < limit; idx++) {
         fn(idx)
       }
     }
@@ -328,11 +328,51 @@ Promise.allLimit = function (iterable, limit) {
 // ], 2).then(([data1, data2, data3, data4]) => {
 //   console.log(data1, data2, data3, data4);
 // })
-Promise.allLimit([
-  sleep3(5000, '#1'), sleep3(2000, '#2'), sleep3(1000, '#3'), sleep3(5000, '#4')
-], 2).then(console.log).catch(console.error)
+// Promise.allLimit([
+//   sleep3(5000, '#1'), sleep3(2000, '#2'), sleep3(1000, '#3'), sleep3(5000, '#4')
+// ], 2).then(console.log).catch(console.error)
+//
+// setInterval(() => {
+//   console.log('1 sec')
+// }, 1000)
 
-setInterval(() => {
-  console.log('1 sec')
-}, 1000)
+
+//> ** fetchWithRetry
+//
+// Необходимо написать обертку для fetch, с возможностью "перезапроса" в случае неудачи. Функция должна принимать параметр-функцию, которая получает какой по счету перезапрос и возвращать количество мс до следующего перезапроса или false. Если функция вернула false, то Promise запроса режектится с исходной ошибкой.
+//
+
+const fetchWithRetry = (url, {retry}) => {
+  let attempts = 0
+
+  return new Promise((res, rej) => {
+    const makeFetch = async () => {
+      try {
+        return await fetch(url)
+      } catch (e) {
+        return e
+      }
+    }
+    const reRequest = async () => {
+      attempts++
+      const result = retry(attempts)
+      const resp = await makeFetch()
+
+      if (resp.ok) return res(resp.json())
+      if (!result) return rej(resp)
+
+      setTimeout(reRequest, result)
+    }
+    reRequest()
+  })
+}
+
+fetchWithRetry('https://jsonplaceholder.typicode.com/posts?_limit=5', {
+  retry: (i) => {
+    if (i < 5) {
+      return i * 1e3;
+    }
+    return false;
+  }
+}).then(console.log, console.error);
 
