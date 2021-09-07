@@ -343,7 +343,7 @@ Promise.allLimit = function (iterable, limit) {
 //
 
 const fetchWithRetry = (url, params) => {
-  const {retry} = params
+  const {retry, ...restParams} = params
   let attempts = 0
 
   return new Promise((res, rej) => {
@@ -352,10 +352,10 @@ const fetchWithRetry = (url, params) => {
       const result = retry(attempts)
 
       try {
-        const resp = await fetch(url, params)
+        const resp = await fetch(url, restParams)
         return res(resp)
       } catch (e) {
-        if (!result) return rej(e)
+        if (result === false) return rej(e)
       }
 
       setTimeout(reRequest, result)
