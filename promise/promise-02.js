@@ -4,25 +4,17 @@
 
 
 const abortablePromise = (promise, controller) => {
-  return promise.then(d => {
-    if (controller.aborted) throw new Error('aborted')
-    return d
-  })
-}
-const abortablePromise2 = (promise, controller) => {
-  return new Promise((res, rej)=>{
-    promise.then(d => {
-      if (controller.aborted) rej('aborted')
-      res(d)
-    })
+  return new Promise((res, rej) => {
+    controller.onabort = rej
+    promise.then(res)
   })
 }
 
 
 const controller = new AbortController();
 
-const myPromise = Promise.resolve(1)
+const myPromise = new Promise(()=> 'yo')
 
-abortablePromise(myPromise, controller.signal).catch(console.error);
+const promise = abortablePromise(myPromise, controller.signal).catch(console.error);
 
 controller.abort();
