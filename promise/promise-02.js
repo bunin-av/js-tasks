@@ -5,7 +5,7 @@
 
 const abortablePromise = (promise, controller) => {
   return new Promise((res, rej) => {
-    controller.onabort = rej
+    controller.addEventListener('abort', rej, {once: true})
     promise.then(res)
   })
 }
