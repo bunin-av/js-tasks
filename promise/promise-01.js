@@ -342,7 +342,7 @@ Promise.allLimit = function (iterable, limit) {
 // Необходимо написать обертку для fetch, с возможностью "перезапроса" в случае неудачи. Функция должна принимать параметр-функцию, которая получает какой по счету перезапрос и возвращать количество мс до следующего перезапроса или false. Если функция вернула false, то Promise запроса режектится с исходной ошибкой.
 //
 
-const fetchWithRetry = (url, params) => {
+const fetchWithRetry = (url, params = {}) => {
   const {retry, ...restParams} = params
   let attempts = 0
 
