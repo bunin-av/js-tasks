@@ -13,8 +13,37 @@ const abortablePromise = (promise, controller) => {
 
 const controller = new AbortController();
 
-const myPromise = new Promise(()=> 'yo')
+const myPromise = new Promise(() => 'yo')
 
 const promise = abortablePromise(myPromise, controller.signal).catch(console.error);
 
 controller.abort();
+
+
+// ## nonNullable
+
+// > Нужно написать функцию, которая принимает функцию и возвращает новую. Новая функция в качестве результата возвращает Promise. Если новой функции передать null в качестве аргументов, то промис должен режектится.
+
+function nonNullable(fn) {
+  return function (...params) {
+    return new Promise((res, rej) => {
+      for (let param of params) {
+        if (param === null) rej('argument is null')
+      }
+      res(fn(...params))
+    })
+  }
+}
+
+function sum(a, b) {
+  return a + b;
+}
+
+function prod(a, b) {
+  return a * b;
+}
+
+const sum2 = nonNullable(sum);
+const prod2 = nonNullable(prod);
+
+prod2(10, null).then(sum2).catch(console.error);
