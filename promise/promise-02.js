@@ -6,7 +6,15 @@
 const abortablePromise = (promise, controller) => {
   return new Promise((res, rej) => {
     controller.addEventListener('abort', rej, {once: true})
-    promise.then(res)
+    promise.then(
+      () => {
+        res()
+        controller.removeEventListener('abort', rej)
+      },
+      () => {
+        rej()
+        controller.removeEventListener('abort', rej)
+      })
   })
 }
 
@@ -54,7 +62,7 @@ prod2(10, null).then(sum2).catch(console.error);
 // > Необходимо написать функцию, которая по своему интерфейсу идентична конструктору Promise, но возвращала бы объект, в котором методы then, catch и finally выполнятся немедленно, если промис уже зарезолвлен. Сементика работы методов в остальном должны быть идентична нативным промисам.
 
 
-const syncPromise = (fn) => {
+const syncPromise = (executor) => {
   let state = 'pending'
   let result = undefined
 
@@ -63,32 +71,39 @@ const syncPromise = (fn) => {
 
   const resolve = (value) => {
     if (state !== 'pending') return
-    state = 'fulfilled'
-    result = value
-    if (res.length !== 0) {
-      for (let fn of res) {
-        fn(result)
+    try {
+      state = 'fulfilled'
+      result = value
+      if (res.length !== 0) {
+        for (let fn of res) {
+          fn(result)
+        }
       }
       return result
+    } catch (e) {
+      reject(e)
     }
-    return result
   }
 
   const reject = (value) => {
     if (state !== 'pending') return
-    state = 'rejected'
-    result = value
-    if (rej.length !== 0) {
-      for (let fn of rej) {
-        fn(result)
+    try {
+      state = 'rejected'
+      result = value
+      if (rej.length !== 0) {
+        for (let fn of rej) {
+          fn(result)
+        }
+        return result
       }
-      return result
+      return result = Promise.reject(value)
+    } catch (e) {
+      return result = Promise.reject(e)
     }
-    return result = Promise.reject(value)
   }
 
   try {
-    fn(resolve, reject)
+    executor(resolve, reject)
   } catch (e) {
     reject(e)
   }
@@ -97,6 +112,9 @@ const syncPromise = (fn) => {
     then(cb1, cb2) {
       try {
         if (state === 'fulfilled') {
+          if(!!result.then) {
+            return syncPromise((resolve) => resolve(typeof cb1 === 'function' ? result.then(cb1) : result))
+          }
           return syncPromise((resolve) => resolve(typeof cb1 === 'function' ? cb1(result) : result))
         }
         if (state === 'rejected') {
@@ -130,10 +148,21 @@ const syncPromise = (fn) => {
     },
     finally(cb) {
       try {
-        return syncPromise((resolve) => {
+        if (state !== 'pending') {
+          return syncPromise((resolve, reject) => {
+            cb()
+            if (state === 'fulfilled') resolve(result)
+            if (state === 'rejected') reject(result)
+          })
+        }
+        return syncPromise((resolve, reject) => {
           res.push(() => {
             cb()
             resolve(result)
+          })
+          rej.push(() => {
+            cb()
+            reject(result)
           })
         })
       } catch (e) {
@@ -142,13 +171,26 @@ const syncPromise = (fn) => {
     }
   }
 }
-//
-// syncPromise((r, r2) => {
-//   setTimeout(() => r2(1), 2000)
-// }).then(null, (v) => {
-//   console.log(v + 2)
-//   return v + 2
-// }).then(console.log)
+
+let fn2 = (a) => {
+  return syncPromise((resolve, reject) => {
+    resolve(a)
+  })
+}
+let fn1 = (a) => {
+  return syncPromise((resolve, reject) => {
+    setTimeout(() => resolve(a), 2000)
+  })
+}
+
+fn2(fn1(1)).then(console.log)
+
+syncPromise((r, r2) => {
+  setTimeout(() => r2(1), 2000)
+}).then(null, (v) => {
+  console.log(v + 2)
+  return v + 2
+}).then(console.log)
 //
 // syncPromise((r, r2) => {
 //   setTimeout(() => r2(1), 2000)
