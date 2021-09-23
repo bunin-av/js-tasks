@@ -41,6 +41,17 @@ const objToIterator2 = (obj) => {
   return obj
 }
 
+function* objToIterator2(obj) {
+  let keys = Object.keys(obj)
+  for(let key of keys) yield obj[key]
+}
+
+function* objToIterator2(obj) {
+  let keys = Object.keys(obj)
+  while (keys.length) yield obj[keys.shift()]
+}
+
+
 // [1, 2]
 Array.from(objToIterator({a: 1, b: 2}));
 
