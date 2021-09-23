@@ -140,7 +140,29 @@ Array.from(map(new Set([1, 2, 3, 4]), (el) => el * 2));
 
 // Написать функцию, которая принимает некоторый элемент и название события для прослушки и возвращает асинхронный итератор. Итератор будет возвращать новые элементы (объекты события) при срабатывании события.
 
+function* on(element, event) {
+  while(true) {
+    yield new Promise(res => element.addEventListener(event, e => res(e), {once: true}));
+  }
+}
 
+function on2(element, event) {
+  return {
+    [Symbol.iterator]() {
+      return {
+        [Symbol.iterator]() {
+          return this
+        },
+        next() {
+          return {
+            value: new Promise(res => element.addEventListener(event, e => res(e), {once: true})),
+            done: false
+          }
+        }
+      }
+    }
+  }
+}
 
 (async () => {
   for await (const e of on(document, 'click')) {
