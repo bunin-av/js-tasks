@@ -43,7 +43,7 @@ const objToIterator2 = (obj) => {
 
 function* objToIterator2(obj) {
   let keys = Object.keys(obj)
-  for(let key of keys) yield obj[key]
+  for (let key of keys) yield obj[key]
 }
 
 function* objToIterator2(obj) {
@@ -151,9 +151,20 @@ Array.from(map(new Set([1, 2, 3, 4]), (el) => el * 2));
 
 // Написать функцию, которая принимает некоторый элемент и название события для прослушки и возвращает асинхронный итератор. Итератор будет возвращать новые элементы (объекты события) при срабатывании события.
 
-function* on(element, event) {
-  while(true) {
+async function* on(element, event) {
+  while (true) {
     yield new Promise(res => element.addEventListener(event, e => res(e), {once: true}));
+  }
+}
+
+async function* on1(element, event) {
+  let cb
+  element.addEventListener(event, e => {
+    cb(e)
+    cb = null
+  })
+  while (true) {
+    yield new Promise(res => cb = res);
   }
 }
 
@@ -169,6 +180,24 @@ function on2(element, event) {
             value: new Promise(res => element.addEventListener(event, e => res(e), {once: true})),
             done: false
           }
+        }
+      }
+    }
+  }
+}
+
+function on3(element, event) {
+  return {
+    [Symbol.asyncIterator]() {
+      let cb
+      element.addEventListener(event, e => cb({value: e, done: false}))
+      cb = null
+      return {
+        [Symbol.asyncIterator]() {
+          return this
+        },
+        next() {
+          return new Promise(res => cb = res)
         }
       }
     }
