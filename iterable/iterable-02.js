@@ -40,32 +40,32 @@ forEach(arr).then(() => {
 // Написать функцию, которая принимает Iterable объект и возвращает Promise, который зарезолвится,
 // когда обход будет закончен. Суммарный обход всех таких forEach не должен превышать 200мс за раз.
 
-function forEach2(iterable){
+function forEach2(iterable) {
 
 }
 
-forEach(myIterable).then(() => {
+forEach2(myIterable).then(() => {
   console.log('Done!');
 });
 
-forEach(myIterable).then(() => {
+forEach2(myIterable).then(() => {
   console.log('Done!');
 });
 
-forEach(myIterable).then(() => {
+forEach2(myIterable).then(() => {
   console.log('Done!');
 });
 
-forEach(myIterable).then(() => {
+forEach2(myIterable).then(() => {
   console.log('Done!');
 });
 
 
 // ## runAsync
 
-  ```js
+```js
 // Написать функцию, которая позволяет писать "плоские" асинхронные программы по аналогии с async/await.
-// В отличии от нативного await в случае если значение не промис - оно должно резолвиться синхронное.
+// В отличии от нативного await в случае если значение не промис - оно должно резолвиться синхронно.
 
 runAsync(function *() {
   const foo = yield getSome(yield 1);
@@ -75,9 +75,17 @@ runAsync(function *() {
 
 // ## join
 
-  ```js
 // Написать функцию join, которая принимает некоторое количество Iterable объектов и возращает новый,
 // который бы обходил все переданные объекты. Для решения задачи нужно использовать yield*.
 
+function* join(...params) {
+  for (const param of params) {
+    yield* param
+  }
+}
+
+let obj1 = new Set([1, 2, 3])
+let obj2 = new Set([4, 5, 6])
+let obj3 = new Set([7, 8, 9])
+
 Array.from(join(obj1, obj2, obj3));
-```
