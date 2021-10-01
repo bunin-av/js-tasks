@@ -7,31 +7,30 @@
 // когда обход будет закончен. Сам обход должен разбиваться на чанки, если выполняется дольше чем 60мс за раз.
 
 function forEach(iterable) {
-  return new Promise(resolve => {
-    let timer = performance.now()
-
-    function* iterTimeout() {
+  let time = performance.now()
+  return new Promise((resolve) => {
+    function* gen() {
       for (const el of iterable) {
-        if (performance.now() - timer > 60) yield 'chunk'
+        if (performance.now() - time > 60) {
+          yield 'chunk'
+        }
       }
       return resolve()
     }
 
-    const {next} = iterTimeout()
+    const res = gen()
     const doIter = () => {
-      timer = performance.now()
-      const {value} = next()
-      if (value) setTimeout(doIter, 0)
+      const {value} = res.next()
+      if (value) {
+        setTimeout(() => {
+          time = performance.now()
+          doIter()
+        }, 0)
+      }
     }
     doIter()
   })
 }
-
-const myIterable = new Set([1, 2, 3])
-const arr = new Array(1e4).fill(1)
-forEach(arr).then(() => {
-  console.log('Done!');
-});
 
 
 // ## forEach2
@@ -39,24 +38,48 @@ forEach(arr).then(() => {
 
 // Написать функцию, которая принимает Iterable объект и возвращает Promise, который зарезолвится,
 // когда обход будет закончен. Суммарный обход всех таких forEach не должен превышать 200мс за раз.
+let time = performance.now()
 
 function forEach2(iterable) {
-
+  return new Promise((resolve, reject) => {
+    let iterator = iterable[Symbol.iterator]()
+    let counter = 0
+    const doIter = () => {
+      counter++
+      let {done} = iterator.next()
+      if (performance.now() - time > 200 || counter === 9000) {
+        return setTimeout(() => {
+          time = performance.now()
+          doIter()
+          counter = 0
+        }, 0)
+      }
+      if (done) return resolve()
+      doIter()
+    }
+    doIter()
+  })
 }
 
-forEach2(myIterable).then(() => {
+
+const arr = new Array(1e4).fill(1)
+forEach2(arr).then(() => {
   console.log('Done!');
 });
 
-forEach2(myIterable).then(() => {
+forEach2(arr).then(() => {
   console.log('Done!');
 });
 
-forEach2(myIterable).then(() => {
+forEach2(arr).then(() => {
   console.log('Done!');
 });
 
-forEach2(myIterable).then(() => {
+forEach2(arr).then(() => {
+  console.log('Done!');
+});
+
+forEach2(arr).then(() => {
   console.log('Done!');
 });
 
