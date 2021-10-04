@@ -6,11 +6,12 @@
 // Написать функцию, которая принимает Iterable объект и возвращает Promise, который зарезолвится,
 // когда обход будет закончен. Сам обход должен разбиваться на чанки, если выполняется дольше чем 60мс за раз.
 
-function forEach(iterable) {
+function forEach(iterable, cb) {
   let time = performance.now()
   return new Promise((resolve) => {
     function* gen() {
       for (const el of iterable) {
+        cb(el)
         if (performance.now() - time > 60) {
           yield 'chunk'
         }
@@ -25,7 +26,7 @@ function forEach(iterable) {
         setTimeout(() => {
           time = performance.now()
           doIter()
-        }, 0)
+        }, 50 + (Math.random() * 50))
       }
     }
     doIter()
@@ -40,19 +41,20 @@ function forEach(iterable) {
 // когда обход будет закончен. Суммарный обход всех таких forEach не должен превышать 200мс за раз.
 let time = performance.now()
 
-function forEach2(iterable) {
+function forEach2(iterable, cb) {
   return new Promise((resolve, reject) => {
     let iterator = iterable[Symbol.iterator]()
     let counter = 0
     const doIter = () => {
       counter++
-      let {done} = iterator.next()
+      let {value, done} = iterator.next()
+      cb(value)
       if (performance.now() - time > 200 || counter === 9000) {
         return setTimeout(() => {
           time = performance.now()
           doIter()
           counter = 0
-        }, 0)
+        }, 150 + (Math.random() * 150))
       }
       if (done) return resolve()
       doIter()
