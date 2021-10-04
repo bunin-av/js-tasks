@@ -7,12 +7,12 @@ const abortablePromise = (promise, controller) => {
   return new Promise((res, rej) => {
     controller.addEventListener('abort', rej, {once: true})
     promise.then(
-      () => {
-        res()
+      (value) => {
+        res(value)
         controller.removeEventListener('abort', rej)
       },
-      () => {
-        rej()
+      (value) => {
+        rej(value)
         controller.removeEventListener('abort', rej)
       })
   })
@@ -36,7 +36,7 @@ function nonNullable(fn) {
   return function (...params) {
     return new Promise((res, rej) => {
       for (let param of params) {
-        if (param === null) rej('argument is null')
+        if (param === null) return rej('argument is null')
       }
       res(fn(...params))
     })
@@ -72,8 +72,13 @@ const syncPromise = (executor) => {
   const resolve = (value) => {
     if (state !== 'pending') return
     try {
-      state = 'fulfilled'
       result = value
+      if (!!result?.then) {
+        return result.then(resolve, reject)
+      }
+
+      state = 'fulfilled'
+
       if (res.length !== 0) {
         for (let fn of res) {
           fn(result)
@@ -112,9 +117,6 @@ const syncPromise = (executor) => {
     then(cb1, cb2) {
       try {
         if (state === 'fulfilled') {
-          if(!!result.then) {
-            return syncPromise((resolve) => resolve(typeof cb1 === 'function' ? result.then(cb1) : result))
-          }
           return syncPromise((resolve) => resolve(typeof cb1 === 'function' ? cb1(result) : result))
         }
         if (state === 'rejected') {
