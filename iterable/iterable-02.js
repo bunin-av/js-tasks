@@ -92,24 +92,14 @@ forEach2(arr).then(() => {
 // Написать функцию, которая позволяет писать "плоские" асинхронные программы по аналогии с async/await.
 // В отличии от нативного await в случае если значение не промис - оно должно резолвиться синхронно.
 
-// function* runAsync(iter, value) {
-//   let {value} = iter.next();
-//
-//   if (value.then) {
-//     return value.then(
-//       (val) => runAsync(iter, val),
-//       (e) => iter.throw(e)
-//     )
-//   } else {
-//     runAsync(iter, value)
-//   }
-// }
-//
-// runAsync(function* () {
-//   const foo = yield getSome(yield 1);
-//   // ...
-// });
-
+function runAsync(iter, val) {
+  const {value} = iter.next(val)
+  if (!value.then) return runAsync(iter, value)
+  return value.then(
+    (v) => runAsync(iter, v),
+    (e) => iter.throw(e)
+  )
+}
 
 // ## join
 
