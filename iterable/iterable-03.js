@@ -120,7 +120,7 @@ Array.from(repeat([1, 2, 3], 2));
 // который продублирует все элементы из исходного заданное количество раз. Итератор должен создаваться с помощью генератора.
 
 function* repeat2(iterable, amount) {
-  while(amount--){
+  while (amount--) {
     yield* iterable
   }
 }
@@ -131,25 +131,81 @@ Array.from(repeat2([1, 2, 3], 2));
 // #
 // # zip
 
-  ```js
+
 // Написать функцию, которая принимает 2 и более Iterable объектов и возвращает итератор,
 // который создаст кортежи из элементов исходных итераторов. Генераторы использовать нельзя.
 
-// [[1, 2], [2, 3], [3, 4]]
+function zip(...restIterables) {
+  let iterVal
+  let elemIter
+  let elem
+  let iterations = 0
+
+  const doIter = () => {
+    if (!iterVal || !iterVal.value) {
+      iterations++
+      iterVal = iter.next()
+    }
+    if (!elemIter || elem.done) {
+      elemIter = iterVal.value[Symbol.iterator]()
+    }
+  }
+
+  const iter = restIterables[Symbol.iterator]()
+  return {
+    [Symbol.iterator]() {
+      return this
+    },
+    next() {
+      const arr = []
+      doIter()
+      while (arr.length < 2) {
+        elem = elemIter.next()
+        if (elem.value) arr.push(elem.value)
+        else doIter()
+      }
+      if (arr.length === 2 && arr[0] > arr[1]) [arr[0], arr[1]] = [arr[1], arr[0]]
+      return iterations !== restIterables.length
+        ? {value: arr, done: false}
+        : {value: undefined, done: true}
+    }
+  }
+}
+
+let q = zip([1, 2, 3], [5, 6, 7])
+q.next()
+
+
 Array.from(zip([1, 2, 3], [2, 3, 4]));
-```
+// [[1, 2], [2, 3], [3, 4]]
 
 // #
-// # zip
-2
+// # zip 2
 
-  ```js
 // Написать функцию, которая принимает 2 и более Iterable объектов и возвращает итератор,
 // который создаст кортежи из элементов исходных итераторов. Итератор должен создаваться с помощью генератора.
 
+function* zip2(...restIterables) {
+  let arr = []
+
+  function* gen() {
+    for (const el of restIterables) {
+      yield* el[Symbol.iterator]()
+    }
+  }
+
+  for (const el of gen()) {
+    arr.push(el)
+    if (arr.length === 2) {
+      if (arr[0] > arr[1]) [arr[0], arr[1]] = [arr[1], arr[0]]
+      yield arr
+      arr = []
+    }
+  }
+}
+
+Array.from(zip2([1, 2, 3], [2, 3, 4]));
 // [[1, 2], [2, 3], [3, 4]]
-Array.from(zip([1, 2, 3], [2, 3, 4]));
-```
 
 // #
 // # flat
@@ -164,14 +220,29 @@ Array.from(flat([[1, 2, 3], [2, 3, 4]]));
 ```
 
 // #
-// # flat
-и
-flatMap
-2
+// # flat и flatMap2
 
-  ```js
+
 // Нужно написать аналог flat и flatMap, но который возвращает итератор. Итератор должен создаваться с помощью генератора.
 
+function* flat2(iterable, depth = 1) {
+  function* gen(iter) {
+    for (const el of iter) {
+      if (el[Symbol.iterator]) yield* gen(el)
+      else yield el
+    }
+  }
+
+  for (const el of iterable) {
+    yield* gen(el)
+  }
+}
+
+Array.from(flat2([[1, 2, 3], [2, 3, 4, [5, 6]]]));
+
+function* flatMap2(iterable) {
+
+}
+
+Array.from(flat2([[1, 2, 3], [2, 3, 4]]));
 // [1, 2, 2, 3, 3, 4]
-Array.from(flat([[1, 2, 3], [2, 3, 4]]));
-```
