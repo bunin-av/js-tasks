@@ -135,6 +135,9 @@ Array.from(repeat2([1, 2, 3], 2));
 // Написать функцию, которая принимает 2 и более Iterable объектов и возвращает итератор,
 // который создаст кортежи из элементов исходных итераторов. Генераторы использовать нельзя.
 
+
+// Работает некорректно
+
 function zip(...restIterables) {
   let iterVal
   let elemIter
@@ -172,9 +175,8 @@ function zip(...restIterables) {
   }
 }
 
-let q = zip([1, 2, 3], [5, 6, 7])
-q.next()
-
+// let q = zip([1, 2, 3], [5, 6, 7])
+// q.next()
 
 Array.from(zip([1, 2, 3], [2, 3, 4]));
 // [[1, 2], [2, 3], [3, 4]]
@@ -207,17 +209,46 @@ function* zip2(...restIterables) {
 Array.from(zip2([1, 2, 3], [2, 3, 4]));
 // [[1, 2], [2, 3], [3, 4]]
 
-// #
-// # flat
-и
-flatMap
 
-  ```js
+// #
+// # flat и flatMap
+
+
 // Нужно написать аналог flat и flatMap, но который возвращает итератор. Генераторы использовать нельзя.
 
-// [1, 2, 2, 3, 3, 4]
 Array.from(flat([[1, 2, 3], [2, 3, 4]]));
-```
+// [1, 2, 2, 3, 3, 4]
+
+
+// Работает некорректно
+
+// function flatMap(iterable, cb) {
+//   let arr = [...iterable]
+//   let iter = iterable[Symbol.iterator]()
+//   let elIter
+//   let iterations = 0
+//   const doIter = (iter) => {
+//     let {value, done} = iter.next()
+//   }
+//   return {
+//     [Symbol.iterator]() {
+//       return this
+//     },
+//     next() {
+//       let {value, done} = iter.next()
+//       elIter= value[Symbol.iterator]()
+//       if(!done)
+//         value = cb(value)
+//       return arr.length === iterations
+//         ? {value, done: false}
+//         : {value: undefined, done: true}
+//     }
+//   }
+// }
+//
+// Array.from(flatMap([[1, 2, 3], [2, 3, 4]], a => a * 2));
+// [2, 4, 6, 4, 6, 8]
+
 
 // #
 // # flat и flatMap2
@@ -225,7 +256,9 @@ Array.from(flat([[1, 2, 3], [2, 3, 4]]));
 
 // Нужно написать аналог flat и flatMap, но который возвращает итератор. Итератор должен создаваться с помощью генератора.
 
-function* flat2(iterable, depth = 1) {
+
+// Получилось сделать только, как будто всегда Infinity
+function* flat2(iterable, depth = Infinity) {
   function* gen(iter) {
     for (const el of iter) {
       if (el[Symbol.iterator]) yield* gen(el)
@@ -240,9 +273,17 @@ function* flat2(iterable, depth = 1) {
 
 Array.from(flat2([[1, 2, 3], [2, 3, 4, [5, 6]]]));
 
-function* flatMap2(iterable) {
+// [1, 2, 2, 3, 3, 4]
 
+
+function* flatMap2(iterable, cb) {
+  for (const iterableEl of iterable) {
+    for (const el of iterableEl) {
+      yield cb(el)
+    }
+  }
 }
 
-Array.from(flat2([[1, 2, 3], [2, 3, 4]]));
-// [1, 2, 2, 3, 3, 4]
+Array.from(flatMap2([[1, 2, 3], [2, 3, 4]], a => a * 2));
+// [2, 4, 6, 4, 6, 8]
+
