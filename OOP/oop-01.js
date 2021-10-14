@@ -44,6 +44,21 @@ Array.prototype.filterMap = function (filterCb, mapCb) {
 
 // Необходимо сделать конкретному массиву метод toString, который возвращает первый элемент .. последний.
 
+
+function addToString(arr) {
+  arr.toString = function () {
+    if (arr.length > 1) {
+      return `${arr[0]}..${arr[arr.length - 1]}`
+    } else if (arr.length === 1) {
+      return `${arr[0]}`
+    }
+    return ``
+  }
+  return arr
+}
+
+addToString([1, 2, 3, 4]).toString()
+
 // 1..4
 addToString([1, 2, 3, 4]).toString()
 
@@ -130,34 +145,45 @@ user.has18() // true
 user.sayName() // 'Andrey Kobets'
 
 
-#
-# Object.create
+// #
+// # Object.create
 
-  ```
-js
+
 // Необходимо написать аналог Object.create с использованием __proto__
 
+function objectCreate(obj, propertiesObj) {
+  const res = {}
+  res.__proto__ = obj
+  return Object.defineProperties(res, propertiesObj || {})
+}
+
 objectCreate({a: 1})
-  ```
 
-#
-# Object.create
-#2
 
-  ```
-js
+// #
+// # Object.create #2
+
+
 // Необходимо написать аналог Object.create с использованием Object.setPrototypeOf
 
-objectCreate({a: 1})
-  ```
+function objectCreate2(obj, propertiesObj) {
+  const res = {}
+  Object.setPrototypeOf(res, obj)
+  return Object.defineProperties(res, propertiesObj || {})
+}
 
-#
-# Object.create
-#3
+objectCreate2({a: 1})
 
-  ```
-js
+
+// #
+// # Object.create #3
+
 // Необходимо написать аналог Object.create с использованием new function
 
-objectCreate({a: 1})
-  ```
+function objectCreate3(obj, propertiesObj) {
+  const res = new function () {
+  }
+  return Object.defineProperties(res, propertiesObj || {})
+}
+
+objectCreate3({a: 1})
