@@ -181,8 +181,14 @@ objectCreate2({a: 1})
 // Необходимо написать аналог Object.create с использованием new function
 
 function objectCreate3(obj, propertiesObj) {
-  const res = new function () {
+  let res
+  if (obj === null) {
+    res = {}
+    Object.setPrototypeOf(res, obj)
+  } else {
+    res = new function () {}
   }
+
   return Object.defineProperties(res, propertiesObj || {})
 }
 
