@@ -93,13 +93,22 @@ forEach2(arr).then(() => {
 // В отличии от нативного await в случае если значение не промис - оно должно резолвиться синхронно.
 
 function runAsync(iter, val) {
-  const {value} = iter.next(val)
-  if (!value.then) return runAsync(iter, value)
-  return value.then(
-    (v) => runAsync(iter, v),
-    (e) => iter.throw(e)
-  )
+  try {
+    const {value, done} = iter.next(val)
+    if (done) return Promise.resolve(value)
+    if (!value.then) return runAsync(iter, value)
+    return value.then(
+      (v) => runAsync(iter, v),
+      (e) => {
+        const val = iter.throw(e)
+        return runAsync(iter, val)
+      }
+    )
+  } catch (e) {
+    return Promise.reject(e)
+  }
 }
+
 
 // ## join
 
