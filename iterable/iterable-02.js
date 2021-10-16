@@ -97,11 +97,12 @@ function runAsync(iter, val) {
     const {value, done} = iter.next(val)
     if (done) return Promise.resolve(value)
     if (!value.then) return runAsync(iter, value)
-    return value.then(
+    return Promise.resolve(value).then(
       (v) => runAsync(iter, v),
-      (e) => {
-        const val = iter.throw(e)
-        return runAsync(iter, val)
+      async (e) => {
+        const res = iter.throw(e)
+        if (res.done) return res.value
+        return runAsync(iter, await res)
       }
     )
   } catch (e) {
