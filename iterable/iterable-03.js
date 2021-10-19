@@ -304,13 +304,11 @@ function flatMap(iterable, cb) {
 
         if (res.value[Symbol.iterator] && depth > 0) {
           depth--
-          console.log('if', res)
           cursor = flatMap(res.value, cb)
           continue
         }
-        console.log('before cb', res)
 
-        res.value = cb(res.value)
+        if (iter === mainIter) res.value = cb(res.value)
         return res
       }
     }
