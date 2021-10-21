@@ -186,7 +186,9 @@ function objectCreate3(obj, propertiesObj) {
     res = {}
     Object.setPrototypeOf(res, obj)
   } else {
-    res = new function () {}
+    function fn() {}
+    fn.prototype = obj
+    res = new fn()
   }
 
   return Object.defineProperties(res, propertiesObj || {})
