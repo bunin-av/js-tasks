@@ -15,7 +15,6 @@ class SyncPromise {
 
     try {
       resolve = (value) => {
-        console.log('resolve')
         if (this.state !== 'pending') return
 
         if (value && typeof value.then === 'function') {
@@ -34,14 +33,20 @@ class SyncPromise {
 
         this.state = 'rejected'
         this.reason = reason
+        //
+        // Promise.resolve().then(() => {
+        //   if (this.onRejected.length === 0) return Promise.reject(this.reason)
+        // })
 
-        Promise.resolve().then(() => {
-          if (this.onRejected.length === 0) return Promise.reject(this.reason)
+        // if (this.onRejected.length === 0) {
+        //   // queueMicrotask(() => Promise.reject(this.reason))
+        //   return Promise.reject(this.reason)
+        //   return;
+        // }
+        queueMicrotask(()=>{
+          if (this.onRejected.length === 0) Promise.reject(this.reason)
         })
 
-        queueMicrotask(() => {
-          if (this.onRejected.length === 0) return Promise.reject(this.reason)
-        })
 
         this.onRejected.forEach(el => el(this.reason))
       }
@@ -55,16 +60,17 @@ class SyncPromise {
 
   then(onFulfilled, onRejected) {
     return new SyncPromise((resolve, reject) => {
-      if (this.state === 'fulfilled') {
+      const wrappedResolve = () => {
         try {
-          typeof onFulfilled === 'function' ? resolve(onFulfilled(this.value)) : this.value
+          typeof onFulfilled === 'function'
+            ? resolve(onFulfilled(this.value))
+            : resolve(this.value)
         } catch (e) {
           reject(e)
         }
-        return
       }
 
-      if (this.state === 'rejected') {
+      const wrappedReject = () => {
         if (typeof onRejected === 'function') {
           try {
             resolve(onRejected(this.reason))
@@ -72,17 +78,84 @@ class SyncPromise {
             reject(e)
           }
         } else reject(this.reason)
-        return
+      }
+
+      if (this.state === 'fulfilled') {
+        wrappedResolve()
+        return;
+      }
+
+      if (this.state === 'rejected') {
+        wrappedReject()
+        return;
       }
 
       if (this.state === 'pending') {
-        this.onFulfilled.push(v => resolve(onFulfilled(v)))
+        this.onFulfilled.push(() => {
+          wrappedResolve()
+        })
+        this.onRejected.push(() => {
+          wrappedReject()
+        })
       }
-      if (this.state === 'pending' && typeof onRejected === 'function') {
-        this.onRejected.push(e => reject(onFulfilled(e)))
+    })
+  }
+
+  catch(onRejected) {
+    return new SyncPromise((resolve, reject) => {
+      const wrappedReject = () => {
+        if (typeof onRejected === 'function') {
+          try {
+            resolve(onRejected(this.reason))
+          } catch (e) {
+            reject(e)
+          }
+        } else reject(this.reason)
       }
-      if (this.state === 'rejected' && !onRejected) {
-        return new SyncPromise((_, rej) => rej(this.value))
+
+      if (this.state === 'fulfilled') {
+        resolve(this.value)
+        return;
+      }
+
+      if (this.state === 'rejected') {
+        wrappedReject()
+        return;
+      }
+
+      if (this.state === 'pending') {
+        this.onFulfilled.push(resolve)
+
+        this.onRejected.push(() => {
+          wrappedReject()
+        })
+      }
+    })
+  }
+
+  finally(cb) {
+    return new SyncPromise((resolve, reject) => {
+      if (this.state === 'fulfilled' || this.state === 'rejected') {
+        try {
+          const result = cb()
+          if (result && typeof result.then === 'function') {
+            result
+              .then(() => resolve(this.value))
+              .catch(() => reject(result))
+            return;
+          }
+          resolve(this.value)
+        } catch (e) {
+          reject(e)
+        }
+        return;
+      }
+      if (this.state === 'pending') {
+        try {
+          this.onFulfilled.push(() => resolve(this.value))
+        } catch (e) {
+          reject(e)
+        }
       }
     })
   }
@@ -91,16 +164,19 @@ class SyncPromise {
   static all(iterable) {
     return new SyncPromise((res, rej) => {
       const arr = [...iterable]
-      if (arr.length === 0) res()
-      const resArr = []
+      if (arr.length === 0) res([])
 
-      for (const el of iterable) {
-        Promise.resolve(el)
-          .then(
-            value => resArr.push(value),
-            rej
-          )
-          .finally(() => resArr.length === arr.length && res(resArr))
+      const resArr = new Array(arr.length)
+      let done = 0
+
+      for (let i = 0; i < arr.length; i++) {
+        SyncPromise.resolve(arr[i])
+          .then(value => {
+            resArr[i] = value
+            done++
+          })
+          .catch(rej)
+          .finally(() => done === arr.length && res(resArr))
       }
     })
   }
@@ -108,16 +184,22 @@ class SyncPromise {
   static allSettled(iterable) {
     return new SyncPromise((res) => {
       const arr = [...iterable]
-      const resArr = []
-      if (arr.length === 0) res(resArr)
+      if (arr.length === 0) res([])
 
-      for (const el of iterable) {
-        Promise.resolve(el)
-          .then(
-            value => resArr.push({status: 'fulfilled', value}),
-            err => resArr.push({status: 'rejected', reason: err})
-          )
-          .finally(() => resArr.length === arr.length && res(resArr))
+      const resArr = new Array(arr.length)
+      let done = 0
+
+      for (let i = 0; i < arr.length; i++) {
+        SyncPromise.resolve(arr[i])
+          .then(value => {
+            resArr[i] = {status: 'fulfilled', value}
+            done++
+          })
+          .catch(reason => {
+            resArr[i] = {status: 'rejected', reason}
+            done++
+          })
+          .finally(() => done === arr.length && res(resArr))
       }
     })
   }
@@ -128,7 +210,7 @@ class SyncPromise {
       if (arr.length === 0) res()
 
       for (const el of iterable) {
-        Promise.resolve(el).then(res, rej)
+        SyncPromise.resolve(el).then(res, rej)
       }
     })
   }
@@ -136,21 +218,20 @@ class SyncPromise {
   static any(iterable) {
     return new SyncPromise((res, rej) => {
       const arr = [...iterable]
-      if (arr.length === 0) res()
-      const resArr = []
+      if (arr.length === 0) rej('AggregateError: All promises were rejected')
+      let done = 0
 
-      for (const el of iterable) {
-        Promise.resolve(el)
-          .then(
-            res,
-            err => resArr.push(err)
-          )
-          .finally(() => resArr.length === arr.length && rej(resArr))
+      for (const el of arr) {
+        SyncPromise.resolve(el)
+          .then(res)
+          .catch(() => done++)
+          .finally(() => done === arr.length && rej('AggregateError: All promises were rejected'))
       }
     })
   }
 
   static resolve(value) {
+    if (value instanceof SyncPromise) return value
     return new SyncPromise(res => res(value))
   }
 
@@ -160,12 +241,23 @@ class SyncPromise {
 
 }
 
-console.log(1)
-let q = new SyncPromise((res) => res(3))
-q.then(console.log)
-// let qq = new SyncPromise((res) => res(Promise.resolve(5)))
-console.log(2)
+let q = SyncPromise.resolve(1)
+q.finally(() => SyncPromise.reject(5)).catch(console.log)
 
+async function fn(){
+  try{
+    return await SyncPromise.reject(100)
+  }catch (e){
+    return e
+  }
+}
 
-  .then(console.log)
-qq.then(console.log).then(console.log)
+// console.log(1)
+// let q = new SyncPromise((res) => res(3))
+// q.then(console.log)
+// // let qq = new SyncPromise((res) => res(Promise.resolve(5)))
+// console.log(2)
+//
+//
+//   .then(console.log)
+// qq.then(console.log).then(console.log)
