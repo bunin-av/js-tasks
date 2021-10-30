@@ -321,6 +321,7 @@ function Money2(amount) {
 }
 
 Money2.prototype = {
+  constructor: Money2,
   get() {
     return this.amount
   },
@@ -394,11 +395,9 @@ const obj = Object.create(null);
 // Тут будет ошибка, т.к. объект создан без прототипа и такого метода у нас нет
 obj.hasOwnProperty('foo')
 
-// Как сделать так, чтобы метод появился, но при этом не добавляет его в прототип или сам объект?
+  // Как сделать так, чтобы метод появился, но при этом не добавляет его в прототип или сам объект?
 
-({}).hasOwnProperty.call(obj,'foo')
-
-
+  ({}).hasOwnProperty.call(obj, 'foo')
 
 
 const tree = {
@@ -452,3 +451,221 @@ const tree = {
 for (const el of tree) {
   console.log(el)
 }
+
+
+// js
+// Реализовать функцию, которая принимает JS объект, а вторым параметром - функцию, которая
+// будет вызываться каждый раз когда одно из этих свойств меняется
+
+function watch(obj, cb) {
+  const propsObj = {}
+  for (let el in obj) {
+    propsObj[el] = {
+      configurable: true,
+      enumerable: true,
+      get() {
+        if (typeof obj[el] === 'object') {
+          return watch(obj[el], cb)
+        }
+        return obj[el]
+      },
+      set(value) {
+        const oldValue = obj[el]
+        obj[el] = value
+        cb(obj[el], oldValue)
+      }
+    }
+  }
+  return Object.create(obj, propsObj)
+}
+
+
+const obj = {
+  a: 1,
+  b: {c: 2}
+};
+
+let q = watch(obj, (value, oldValue) => {
+  console.log(value, oldValue);
+});
+
+function watch(obj, cb) {
+  const propsObj = {}
+  for (const el in obj) {
+    if (typeof obj[el] === 'object') watch(obj[el], cb)
+    const newKey = Symbol(el)
+    obj[newKey] = obj[el]
+    propsObj[el] = {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return this[newKey]
+      },
+      set(value) {
+        const oldValue = this[newKey]
+        this[newKey] = value
+        cb(this[newKey], oldValue)
+      }
+    }
+  }
+  Object.defineProperties(obj, propsObj)
+}
+
+
+const obj = {
+  a: 1,
+  b: {c: 2}
+};
+
+watch(obj, (value, oldValue) => {
+  console.log(value, oldValue);
+});
+
+obj.a++;
+obj.b.c++;
+
+const newObj = watch()
+
+
+// Необходимо написать класс KVStorage, который бы реализовывал базовый CRUD API для работы с локальным хранилищем.
+// Первым параметром конструктор класса должен получать "движок" или "стратегию", где именно хранить данные.
+// Движки следует хранить как статические свойства класса. Методы класса должны возвращать Promise.
+// Следует реализовать 2 движка: localStorage и IndexedDb.
+
+class IndexedDb {
+  set({dbName, storeName, key, value}) {
+    return new Promise((res, rej) => {
+      const request = indexedDB.open(dbName)
+      request.onerror = rej
+      const db = request.result
+
+      if (!db.objectStoreNames.contains(storeName)) {
+        request.onupgradeneeded = function () {
+          const store = db.createObjectStore(storeName, {keyPath: 'id'})
+          store.put({[key]: value, id: new Date().getTime()})
+        }
+        request.onsuccess = function () {
+          request.result.close()
+          res({dbName, storeName, key, value})
+        }
+
+      } else {
+        const tx = db.transaction(storeName, "readwrite");
+        const store = tx.objectStore(storeName);
+
+        const result = store.put({[key]: value, id: new Date().getTime()});
+
+        tx.oncomplete = function () {
+          request.result.close()
+          res({dbName, storeName, key, value})
+        }
+        result.onerror = rej
+      }
+    })
+  }
+
+  get({dbName, storeName, key, value}) {
+    return new Promise((res, rej) => {
+      const request = indexedDB.open(dbName)
+      request.onerror = rej
+      const db = request.result
+
+      if (!db.objectStoreNames.contains(storeName)) {
+        rej('Invalid store name')
+      }
+
+      const tx = db.transaction(storeName, 'readonly')
+      const store = tx.objectStore(storeName)
+      const idx = store.index(key)
+
+      const req = idx.get(value)
+      req.onsuccess = function () {
+        if (req.result != null) {
+          res(req.result)
+        } else {
+          rej('No match found')
+        }
+      }
+    })
+  }
+
+  remove({dbName, storeName, value}) {
+    return new Promise((res, rej) => {
+      const request = indexedDB.open(dbName)
+      request.onerror = rej
+      const db = request.result
+
+      if (!db.objectStoreNames.contains(storeName)) {
+        rej('Invalid store name')
+      }
+
+      const tx = db.transaction(storeName, 'readonly')
+      const store = tx.objectStore(storeName)
+      store.delete(value)
+
+    })
+  }
+}
+
+class LocalStorage {
+  _reject(key, cb) {
+    if (typeof key !== 'string') return cb('Invalid key type')
+  }
+
+  set({key, value}) {
+    return new Promise((res, rej) => {
+      this._reject(key, rej)
+
+      const prepValue = JSON.stringify(value)
+      localStorage.setItem(key, prepValue)
+      res(key, value)
+    })
+  }
+
+  get(key) {
+    return new Promise((res, rej) => {
+      this._reject(key, rej)
+
+      const value = JSON.parse(localStorage.getItem(key))
+      res(value)
+    })
+  }
+
+  remove(key) {
+    return new Promise((res, rej) => {
+      this._reject(key, rej)
+
+      localStorage.removeItem(key)
+      res(key)
+    })
+  }
+}
+
+class KVStorage {
+  constructor(strategy) {
+    this.stratagy = strategy
+  }
+
+  static localStorage = new LocalStorage()
+
+  static indexedDb = new IndexedDb()
+
+  set(props) {
+    this.stratagy.set(props)
+  }
+
+  get(props) {
+    this.stratagy.get(props)
+  }
+
+  remove(props) {
+    this.stratagy.remove(props)
+  }
+}
+
+let obj = {dbName: 'store', storeName: 'books', key: 'title', value: 'Tom Sawyer'}
+const storage = new KVStorage(KVStorage.localStorage);
+
+storage.set('foo', {bla: 1}).then(async () => {
+  console.log(await storage.get('foo'));
+});
