@@ -533,110 +533,87 @@ const newObj = watch()
 // Следует реализовать 2 движка: localStorage и IndexedDb.
 
 class IndexedDb {
-  set({dbName, storeName, key, value}) {
-    return new Promise((res, rej) => {
-      const request = indexedDB.open(dbName)
-      request.onerror = rej
-      const db = request.result
+  constructor(dbName = 'kv-storage-db', storeName = 'kv-storage') {
+    this._storeName = storeName
 
-      if (!db.objectStoreNames.contains(storeName)) {
-        request.onupgradeneeded = function () {
-          const store = db.createObjectStore(storeName, {keyPath: 'id'})
-          store.put({[key]: value, id: new Date().getTime()})
+    const request = indexedDB.open(dbName)
+
+    this._db = new Promise(res => {
+      request.onupgradeneeded = function () {
+        const db = request.result
+
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.createObjectStore(storeName)
         }
-        request.onsuccess = function () {
-          request.result.close()
-          res({dbName, storeName, key, value})
-        }
+      }
 
-      } else {
-        const tx = db.transaction(storeName, "readwrite");
-        const store = tx.objectStore(storeName);
-
-        const result = store.put({[key]: value, id: new Date().getTime()});
-
-        tx.oncomplete = function () {
-          request.result.close()
-          res({dbName, storeName, key, value})
-        }
-        result.onerror = rej
+      request.onsuccess = function () {
+        res(request.result)
       }
     })
   }
 
-  get({dbName, storeName, key, value}) {
+  _getStore(mode) {
+    return this._db
+      .then(db => db.transaction(this._storeName, mode).objectStore(this._storeName))
+  }
+
+  _promisifyRequestToStore(request) {
     return new Promise((res, rej) => {
-      const request = indexedDB.open(dbName)
-      request.onerror = rej
-      const db = request.result
-
-      if (!db.objectStoreNames.contains(storeName)) {
-        rej('Invalid store name')
-      }
-
-      const tx = db.transaction(storeName, 'readonly')
-      const store = tx.objectStore(storeName)
-      const idx = store.index(key)
-
-      const req = idx.get(value)
-      req.onsuccess = function () {
-        if (req.result != null) {
-          res(req.result)
-        } else {
-          rej('No match found')
-        }
-      }
+      request.onsuccess = () => res(request.result)
+      request.onerror = () => rej(request.onerror)
     })
   }
 
-  remove({dbName, storeName, value}) {
-    return new Promise((res, rej) => {
-      const request = indexedDB.open(dbName)
-      request.onerror = rej
-      const db = request.result
+  set(key, value) {
+    return this._getStore('readwrite')
+      .then(st => this._promisifyRequestToStore(st.put(value, key)))
+  }
 
-      if (!db.objectStoreNames.contains(storeName)) {
-        rej('Invalid store name')
-      }
+  get(key) {
+    return this._getStore('readonly')
+      .then(st => this._promisifyRequestToStore(st.get(key)))
+  }
 
-      const tx = db.transaction(storeName, 'readonly')
-      const store = tx.objectStore(storeName)
-      store.delete(value)
+  remove(key) {
+    return this._getStore('readwrite')
+      .then(st => this._promisifyRequestToStore(st.delete(key)))
+  }
 
-    })
+  clear() {
+    return this._getStore('readwrite')
+      .then(st => this._promisifyRequestToStore(st.clear()))
   }
 }
 
 class LocalStorage {
-  _reject(key, cb) {
-    if (typeof key !== 'string') return cb('Invalid key type')
-  }
 
-  set({key, value}) {
-    return new Promise((res, rej) => {
-      this._reject(key, rej)
-
+  set(key, value) {
+    return new Promise(res => {
       const prepValue = JSON.stringify(value)
       localStorage.setItem(key, prepValue)
-      res(key, value)
+      res(value)
     })
   }
 
   get(key) {
-    return new Promise((res, rej) => {
-      this._reject(key, rej)
-
+    return new Promise(res => {
       const value = JSON.parse(localStorage.getItem(key))
       res(value)
     })
   }
 
   remove(key) {
-    return new Promise((res, rej) => {
-      this._reject(key, rej)
-
+    return new Promise(res => {
       localStorage.removeItem(key)
       res(key)
+    })
+  }
+
+  сlear() {
+    return new Promise(res => {
+      localStorage.clear()
+      res()
     })
   }
 }
@@ -650,22 +627,32 @@ class KVStorage {
 
   static indexedDb = new IndexedDb()
 
-  set(props) {
-    this.stratagy.set(props)
+  set(...props) {
+    return this.stratagy.set(...props)
   }
 
   get(props) {
-    this.stratagy.get(props)
+    return this.stratagy.get(props)
+
   }
 
   remove(props) {
-    this.stratagy.remove(props)
+    return this.stratagy.remove(props)
+  }
+
+  clear() {
+    return this.stratagy.clear()
   }
 }
 
-let obj = {dbName: 'store', storeName: 'books', key: 'title', value: 'Tom Sawyer'}
-const storage = new KVStorage(KVStorage.localStorage);
+// let obj = {dbName: 'store', storeName: 'books', key: 'title', value: 'Tom Sawyer'}
+// const storage = new KVStorage(KVStorage.localStorage);
+//
+// storage.set('foo', {bla: 1}).then(async () => {
+//   console.log(await storage.get('foo'));
+// });
 
-storage.set('foo', {bla: 1}).then(async () => {
-  console.log(await storage.get('foo'));
+let st = new KVStorage(KVStorage.indexedDb)
+st.set('title', 'Tom Sawyer').then(async () => {
+  console.log(await st.get('title'));
 });
