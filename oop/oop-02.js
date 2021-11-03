@@ -590,15 +590,14 @@ class LocalStorage {
 
   set(key, value) {
     return new Promise(res => {
-      const prepValue = JSON.stringify(value)
-      localStorage.setItem(key, prepValue)
+      localStorage.setItem(key, value)
       res(value)
     })
   }
 
   get(key) {
     return new Promise(res => {
-      const value = JSON.parse(localStorage.getItem(key))
+      const value = localStorage.getItem(key)
       res(value)
     })
   }
@@ -623,17 +622,18 @@ class KVStorage {
     this.stratagy = strategy
   }
 
-  static localStorage = new LocalStorage()
+  static localStorage = LocalStorage
 
-  static indexedDb = new IndexedDb()
+  static indexedDb = IndexedDb
 
-  set(...props) {
-    return this.stratagy.set(...props)
+  set(key, value) {
+    const prepValue = JSON.stringify(value)
+    return this.stratagy.set(key, prepValue)
   }
 
   get(props) {
-    return this.stratagy.get(props)
-
+    const res = this.stratagy.get(props)
+    return res.then(v => JSON.parse(v))
   }
 
   remove(props) {
@@ -652,7 +652,7 @@ class KVStorage {
 //   console.log(await storage.get('foo'));
 // });
 
-let st = new KVStorage(KVStorage.indexedDb)
+let st = new KVStorage(new KVStorage.indexedDb())
 st.set('title', 'Tom Sawyer').then(async () => {
   console.log(await st.get('title'));
 });
