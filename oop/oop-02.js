@@ -656,3 +656,34 @@ let st = new KVStorage(new KVStorage.indexedDb())
 st.set('title', 'Tom Sawyer').then(async () => {
   console.log(await st.get('title'));
 });
+
+
+// ## Использование паттерна "builder" для эффективной записи в локальное хранилище
+
+// С помощью специальных статических методов наполняем внутренний буффер,
+// а затем сразу все инициализируем (вызов create)
+
+KVStorage.storage = function (strategy) {
+  return {
+    _settings: [],
+    set(...props) {
+      this._settings.push(props)
+      return this
+    },
+    create() {
+      const storage = new KVStorage(new strategy())
+      for (const el of this._settings) {
+        storage.set(...el)
+      }
+      return storage
+    }
+  }
+}
+
+const storage = KVStorage
+  .storage(KVStorage.localStorage)
+  .set('foo', {bla: 1})
+  .set('bar', {bar: 2})
+  .create();
+
+
