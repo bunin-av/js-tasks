@@ -687,3 +687,124 @@ const storage = KVStorage
   .create();
 
 
+// ## Класс EventEmitter c поддержкой "всплытия" и "погружения"
+
+// Необходимо написать класс EventEmitter с методами on/off/emit,
+// который поддерживает механизм погружения и всплытия событий подобно нативному EventTarget.
+// Методы должн on возвращать ссылку, которую можно передать в off, для удаляения обработчика.
+// Допускается также удалять обработчики по имени события. Чтобы добавить методу on метод capture - используй декораторы или паттерн декоратор
+
+class EventEmitter {
+  constructor(parent) {
+    if (parent) {
+      this.parent = parent
+      this.parent.emit = null
+    }
+  }
+
+  eventHandlers = []
+
+  emit(type, eventInit) {
+    if (!type) throw Error('UNSPECIFIED_EVENT_TYPE_ERR')
+
+    this.event = new Event(type, eventInit)
+
+    for (const cb of this.eventHandlers) {
+      cb()
+    }
+
+    if (this.parent) {
+      for (const cb of this.parent.eventHandlers) {
+        cb()
+      }
+    }
+
+    return !(this.event.cancelable && this.event.defaultPrevented)
+  }
+
+  // @capture
+  on(type, handler) {
+    if (!this.eventType || this.eventType === type) {
+      this.eventType = type
+      this.eventHandlers.push(handler)
+
+      return handler
+    }
+  }
+
+  off(handler) {
+    if (typeof handler === 'function') {
+      this.eventHandlers.filter(el => el !== handler)
+      return
+    }
+    if (handler === this.eventType) {
+      this.eventHandlers = []
+    }
+  }
+}
+
+
+function captureDecorator(ctx) {
+  ctx.on.capture = function (type, handler) {
+    if (!ctx.eventType || ctx.eventType === type) {
+      ctx.eventType = type
+      // if (ctx.parent) {
+      //   ctx.eventHandlers.unshift(handler)
+      // } else {
+      //   ctx.parent.eventHandlers.unshift(handler)
+      // }
+
+      const emit = ctx.emit
+      ctx.phase = 'capture'
+
+      ctx.emit = function (type, eventInit) {
+        if (!type) throw Error('UNSPECIFIED_EVENT_TYPE_ERR')
+
+        ctx.event = new Event(type, eventInit)
+        if(ctx.phase === 'capture' && ctx.parent) {
+            for (const cb of this.parent.eventHandlers) {
+              cb()
+            }
+            ctx.phase = 'bubbling'
+          }
+        }
+
+        for (const cb of this.eventHandlers) {
+          cb()
+        }
+
+        return !(this.event.cancelable && this.event.defaultPrevented)
+      }
+
+
+      return handler
+    }
+  }
+}
+
+
+const parent = new EventEmitter();
+const ev = new EventEmitter(parent);
+
+ev.emit('foo', {});
+
+captureDecorator(parent)
+captureDecorator(ev)
+
+parent.on.capture('foo', (e) => {
+  console.log(1);
+});
+
+ev.on.capture('foo', (e) => {
+  console.log(2);
+});
+
+ev.on('foo', (e) => {
+  console.log(3);
+});
+
+parent.on('foo', (e) => {
+  console.log(4);
+});
+
+ev.emit('foo', {});
