@@ -698,35 +698,59 @@ class EventEmitter {
   constructor(parent) {
     if (parent) {
       this.parent = parent
-      this.parent.emit = null
+      this.on.capture = this.capture.bind(this)
     }
   }
 
-  eventHandlers = []
+  bubblingHandlers = []
+  capturingHandlers = []
+
+  #gen = function* (arr) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      yield arr[i]
+    }
+  }
 
   emit(type, eventInit) {
     if (!type) throw Error('UNSPECIFIED_EVENT_TYPE_ERR')
 
     this.event = new Event(type, eventInit)
 
-    for (const cb of this.eventHandlers) {
+    if (this.parent) {
+      for (const cb of this.parent.capturingHandlers) {
+        cb()
+      }
+    }
+    for (const cb of this.capturingHandlers) {
       cb()
     }
 
+    for (const cb of this.#gen(this.bubblingHandlers)) {
+      cb()
+    }
     if (this.parent) {
-      for (const cb of this.parent.eventHandlers) {
+      for (const cb of this.#gen(this.parent.bubblingHandlers)) {
         cb()
       }
     }
 
+
     return !(this.event.cancelable && this.event.defaultPrevented)
   }
 
-  // @capture
+  capture(type, handler) {
+    if (!this.eventType || this.eventType === type) {
+      this.eventType = type
+      this.capturingHandlers.push(handler)
+
+      return handler
+    }
+  }
+
   on(type, handler) {
     if (!this.eventType || this.eventType === type) {
       this.eventType = type
-      this.eventHandlers.push(handler)
+      this.bubblingHandlers.push(handler)
 
       return handler
     }
@@ -734,53 +758,15 @@ class EventEmitter {
 
   off(handler) {
     if (typeof handler === 'function') {
-      this.eventHandlers.filter(el => el !== handler)
+      this.bubblingHandlers.filter(el => el !== handler)
       return
     }
     if (handler === this.eventType) {
-      this.eventHandlers = []
+      this.bubblingHandlers = []
     }
   }
 }
 
-
-function captureDecorator(ctx) {
-  ctx.on.capture = function (type, handler) {
-    if (!ctx.eventType || ctx.eventType === type) {
-      ctx.eventType = type
-      // if (ctx.parent) {
-      //   ctx.eventHandlers.unshift(handler)
-      // } else {
-      //   ctx.parent.eventHandlers.unshift(handler)
-      // }
-
-      const emit = ctx.emit
-      ctx.phase = 'capture'
-
-      ctx.emit = function (type, eventInit) {
-        if (!type) throw Error('UNSPECIFIED_EVENT_TYPE_ERR')
-
-        ctx.event = new Event(type, eventInit)
-        if(ctx.phase === 'capture' && ctx.parent) {
-            for (const cb of this.parent.eventHandlers) {
-              cb()
-            }
-            ctx.phase = 'bubbling'
-          }
-        }
-
-        for (const cb of this.eventHandlers) {
-          cb()
-        }
-
-        return !(this.event.cancelable && this.event.defaultPrevented)
-      }
-
-
-      return handler
-    }
-  }
-}
 
 
 const parent = new EventEmitter();
@@ -788,8 +774,6 @@ const ev = new EventEmitter(parent);
 
 ev.emit('foo', {});
 
-captureDecorator(parent)
-captureDecorator(ev)
 
 parent.on.capture('foo', (e) => {
   console.log(1);
