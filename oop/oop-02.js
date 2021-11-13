@@ -768,7 +768,6 @@ class EventEmitter {
 }
 
 
-
 const parent = new EventEmitter();
 const ev = new EventEmitter(parent);
 
@@ -792,3 +791,71 @@ parent.on('foo', (e) => {
 });
 
 ev.emit('foo', {});
+
+
+
+// ## Написать класс связанный список
+
+class LinkedList {
+  list
+  last
+  previousEl
+  nextEl
+  searchedEl
+
+  constructor(arr) {
+    this.#makeList(arr)
+  }
+
+  #makeItem(el) {
+    return {
+      value: el,
+      next: null,
+      * [Symbol.iterator]() {
+        yield this.value
+        if (this.next) yield* this.next
+      }
+    }
+  }
+
+  #makeList(arr) {
+    for (const el of arr) {
+      if (!this.list) {
+        this.list = this.#makeItem(el)
+        this.previousEl = this.list
+      } else {
+        this.previousEl.next = this.#makeItem(el)
+        this.previousEl = this.previousEl.next
+      }
+    }
+    this.last = this.previousEl
+    this.previousEl = null
+  }
+
+  add(el) {
+    this.last.next = this.#makeItem(el)
+    this.last = this.last.next
+  }
+
+  search(el) {
+    const doSearch = (list) => {
+      if (el === list.value) {
+        this.searchedEl = list
+        this.nextEl = list.next
+      } else {
+        this.previousEl = list
+        doSearch(list.next)
+      }
+    }
+    doSearch(this.list)
+  }
+
+  delete(el) {
+    this.search(el)
+    this.previousEl.next = this.nextEl
+    this.previousEl = null
+    this.searchedEl = null
+  }
+}
+
+let list = new LinkedList([1, 2, 3, 4, 5])
