@@ -695,18 +695,20 @@ const storage = KVStorage
 // Допускается также удалять обработчики по имени события. Чтобы добавить методу on метод capture - используй декораторы или паттерн декоратор
 
 class EventEmitter {
-  constructor(parent) {
-    if (parent) {
-      this.parent = parent
-      this.on.capture = this.capture.bind(this)
-    }
-  }
 
   bubblingHandlers = []
   capturingHandlers = []
 
-  #gen = function* (arr) {
-    for (let i = arr.length - 1; i >= 0; i--) {
+  constructor(parent) {
+    if (parent) {
+      this.parent = parent
+      this.on = this.on.bind(this)
+      this.on.capture = this.capture.bind(this)
+    }
+  }
+
+  * #reverse(arr) {
+    for (let i = arr.length; i--;) {
       yield arr[i]
     }
   }
@@ -725,11 +727,11 @@ class EventEmitter {
       cb()
     }
 
-    for (const cb of this.#gen(this.bubblingHandlers)) {
+    for (const cb of this.#reverse(this.bubblingHandlers)) {
       cb()
     }
     if (this.parent) {
-      for (const cb of this.#gen(this.parent.bubblingHandlers)) {
+      for (const cb of this.#reverse(this.parent.bubblingHandlers)) {
         cb()
       }
     }
@@ -793,15 +795,17 @@ parent.on('foo', (e) => {
 ev.emit('foo', {});
 
 
-
 // ## Написать класс связанный список
 
 class LinkedList {
   list
   last
-  previousEl
-  nextEl
-  searchedEl
+  #prototype = {
+    * [Symbol.iterator]() {
+      yield this
+      if (this.next) yield* this.next
+    }
+  }
 
   constructor(arr) {
     this.#makeList(arr)
@@ -811,10 +815,7 @@ class LinkedList {
     return {
       value: el,
       next: null,
-      * [Symbol.iterator]() {
-        yield this.value
-        if (this.next) yield* this.next
-      }
+      __proto__: this.#prototype
     }
   }
 
@@ -822,14 +823,12 @@ class LinkedList {
     for (const el of arr) {
       if (!this.list) {
         this.list = this.#makeItem(el)
-        this.previousEl = this.list
+        this.last = this.list
       } else {
-        this.previousEl.next = this.#makeItem(el)
-        this.previousEl = this.previousEl.next
+        this.last.next = this.#makeItem(el)
+        this.last = this.last.next
       }
     }
-    this.last = this.previousEl
-    this.previousEl = null
   }
 
   add(el) {
@@ -838,23 +837,19 @@ class LinkedList {
   }
 
   search(el) {
-    const doSearch = (list) => {
-      if (el === list.value) {
-        this.searchedEl = list
-        this.nextEl = list.next
-      } else {
-        this.previousEl = list
-        doSearch(list.next)
-      }
+    for (const listEl of this.list) {
+      if (listEl.value === el) return listEl
     }
-    doSearch(this.list)
   }
 
   delete(el) {
-    this.search(el)
-    this.previousEl.next = this.nextEl
-    this.previousEl = null
-    this.searchedEl = null
+    for (const listEl of this.list) {
+      if (listEl.next.value === el) {
+        const deleted = listEl.next
+        listEl.next = listEl.next.next
+        return deleted
+      }
+    }
   }
 }
 
