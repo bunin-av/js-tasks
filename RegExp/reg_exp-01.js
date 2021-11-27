@@ -18,7 +18,7 @@ function format(string, params) {
 // Необходимо написать регулярное выражение, которое при вызове test на строке будет давать false,
 // если в строке есть символы отличные от латинских, цифр, подчеркивания и знака $.
 
-const myRegExp = /[\w$]+/
+const myRegExp = /^[\w$]+$/
 
 // console.log(myRegExp.test('привет ')) // false
 
@@ -56,12 +56,52 @@ let re = /(\w{1,3})\1+/g
 // "foo"
 // 'bar\''
 // `b\`la`
+  // (['"`])(\\.|[^\\'"`])*\1
 
-// let rexp = /(^['"`]).*(\1$)/
-let rexp = /(?<=['"`]).*(?=\1)/
+let rexp = /(?<=“)(\\.|[^\\'"`”])*(?=”)|(?<=‘)(\\.|[^\\'"`’])*(?=’)/g
 
 
-console.log(rexp.exec("'bar\''"))
+// console.log(rexp.exec("‘Hello “foo \\\\” bar\\\\\\\\” baz “ban”’"))
+console.log(rexp.exec('"bar" "foo"'))
+console.log(rexp.exec('"bar" "foo"'))
+// console.log("`b`la` 'ddo'".replace(/(['"`‘])(.*?)\1/g, '$2'))
 // rexp.exec('bar\'')
 
 
+
+// ## Поменять ключи и значения местами
+//
+
+const str = `{
+  "foo": 1,
+  10: 'baz',
+  bla: true,
+  ban: {a: 1}
+}`;
+
+let r = /((['"]?)\b[\w$]+\b\2): ([^\n,]+)(,?)$/gm
+// str.replace(r, (str,$1,_,$2,$3)=> `${$2}: ${$1}${$3}`)
+
+let r2 = /((['"]?)\b[\w$]+\b\2): ([^\n,]+)(?=,)?/gm
+// str.replace(r, (str,$1,_,$2)=> `${$2}: ${$1}`)
+
+// == `{
+//   1: "foo",
+//   baz: 10,
+//   true: 'bla',
+//   '{a: 1}': 'ban'
+// }`;
+
+
+// ## Парсинг XML
+
+
+const s = `
+<div bla="foo">
+  <div class=ban checked data-foo="baz bar"></div>
+</div>
+`;
+
+let reg = /(?<=<)(\w+)\s*(.*?)(?=>)/gi
+reg.exec(s); // ['div bla="foo"', 'div', 'bla="foo"'];
+reg.exec(s); // ['div class=ban checked data-foo="baz"', 'div', 'class=ban', 'checked', 'data-foo="baz bar"'];
