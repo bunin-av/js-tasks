@@ -88,11 +88,15 @@ function tag(tag, params = {}) {
           };
         }
 
-        return Promise.resolve([inputIter, res]);
+        // return Promise.resolve([inputIter, res]);
+        return Thenable.resolve([res, inputIter]);
       }
 
-      if (tagEl.value !== inputIter.next().value) {
-        return Promise.reject();
+      const inputIterEl = inputIter.next();
+
+      if (tagEl.value !== inputIterEl.value) {
+        // return Promise.reject();
+        return Thenable.reject(seqIter(res + inputIterEl.value, inputIter));
       }
 
       res += tagEl.value;
@@ -111,7 +115,7 @@ function pattern(pattern, params = {}) {
       inputValue = inputIter.next().value;
 
     if (!pattern.test(inputValue)) {
-      return Promise.reject();
+      return Thenable.reject(seqIter(inputValue, inputIter));
     }
 
     if (params.name) {
@@ -121,7 +125,8 @@ function pattern(pattern, params = {}) {
       };
     }
 
-    return Promise.resolve([inputIter, inputValue]);
+    // return Promise.resolve([inputIter, inputValue]);
+    return Thenable.resolve([inputValue, inputIter]);
   }
 }
 
@@ -138,14 +143,17 @@ function takeWhile(pattern, params = {}) {
     while (true) {
       const
         inputValue = inputIter.next().value;
-      console.log(inputValue, res)
+
       if (pattern.test(inputValue)) {
         res += inputValue;
         continue;
       }
 
+      const seqedIter = seqIter(inputValue, inputIter);
+
       if (!res) {
-        return Promise.reject();
+        // return Promise.reject();
+        return Thenable.reject(seqedIter);
       }
 
       if (params.name) {
@@ -155,7 +163,8 @@ function takeWhile(pattern, params = {}) {
         };
       }
 
-      return Promise.resolve([inputIter, res]);
+      // return Promise.resolve([inputIter, res]);
+      return Thenable.resolve([res, seqedIter]);
     }
   }
 }
@@ -169,71 +178,80 @@ function seq(...gens) {
     let
       inputIter = input[Symbol.iterator](),
       res = '',
-      resolve,
-      reject;
+      returnedRes;
 
-    for (let [i, gen] of gens.entries()) {
-      const
+    for (const gen of gens) {
+      let
         iter = gen(inputIter),
-        iterValue = iter.next().value;
+        iterEl;
 
-      if (!iterValue.then) {
-        yield iterValue;
-      } else {
-        iterValue
-          .then(([iter, value]) => {
-            res += value;
+      do {
+        iterEl = iter.next();
+        const iterValue = iterEl.value;
 
-            if (i === gens.length - 1) {
-              resolve([iter, res]);
-            }
-          })
-          .catch(reject);
-      }
+        if (typeof iterValue.then !== 'function') {
+          yield iterValue;
+          continue;
+        }
+
+        returnedRes = iterValue.then(([value, iter]) => {
+          res += value;
+          inputIter = iter;
+          return [res, inputIter];
+        });
+
+        if (returnedRes.status === 'rejected') return Thenable.reject(returnedRes);
+
+      } while (!iterEl.done);
     }
 
-    return new Promise((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
+    return Thenable.resolve(returnedRes);
   }
 }
+
+// const i = [
+//   ...seq(
+//   pattern(/[+-]/, {name: 'MyToken'}),
+//   takeWhile(/\d/, {name: 'IntPart'}),
+//   tag('<<<')
+//   )('+21312312<<<')
+// ];
 
 
 function opt(...gens) {
   return function* (input) {
     let
       inputIter = input[Symbol.iterator](),
-      res = '',
-      resolve,
-      lastIter;
+      res = '';
 
-    for (let [i, gen] of gens.entries()) {
-      const
+    for (const gen of gens) {
+      let
         iter = gen(inputIter),
-        iterValue = iter.next().value;
+        iterEl;
 
-      if (!iterValue.then) {
-        yield iterValue;
-      } else {
-        iterValue
-          .then(([iter, value]) => {
+      do {
+        iterEl = iter.next();
+        const iterValue = iterEl.value;
+
+        if (typeof iterValue.then !== 'function') {
+          yield iterValue;
+          continue;
+        }
+
+        iterValue.then(
+          ([value, iter]) => {
             res += value;
-            lastIter = iter;
-          })
-          .catch(() => {
-          })
-          .finally(() => {
-            if (i === gens.length - 1) {
-              resolve([lastIter, res]);
-            }
-          });
-      }
+            inputIter = iter;
+          },
+          (iter) => {
+            inputIter = iter;
+          }
+        );
+
+      } while (!iterEl.done);
     }
 
-    return new Promise(res => {
-      resolve = res;
-    });
+    return Thenable.resolve([res, inputIter]);
   }
 }
 
@@ -241,41 +259,107 @@ function opt(...gens) {
 function zip(iterator) {
   return (function* () {
     let
-      res = '',
-      name = '';
+      res,
+      name,
+      iterEl;
 
-    for (const el of iterator) {
-      res += el.value;
+    do {
+      iterEl = iterator.next();
+      const {value} = iterEl;
 
-      if (el.name.contains('Number') || typeof +el.value === 'number' && !name) {
+      if (!name && !isNaN(value.value)) {
         name = 'Number';
       }
-    }
+
+      if (typeof value.then === 'function') {
+        value.then(([val]) => {
+          res = val;
+        });
+      }
+
+    } while (!iterEl.done);
 
     yield {
       name,
       value: res
     }
 
-    return Promise.resolve([undefined, res])
+    return Thenable.resolve([res, iterator]);
   })();
 }
 
 
-class Container {
-  status;
-  value;
+class Thenable {
 
-  static ok = 'ok';
-  static failed = 'failed';
+  static resolve = (value) => {
+    if (typeof value?.then === 'function') return value;
 
-  /**
-   *
-   * @param status: 'ok' | 'failed'
-   * @param value: any
-   */
+    return new Thenable('fulfilled', value);
+  }
+
+  static reject = (value) => {
+    if (typeof value?.then === 'function' && value.status === 'rejected') return value;
+
+    return new Thenable('rejected', value);
+  }
+
   constructor(status, value) {
     this.status = status;
     this.value = value;
   }
+
+  then(onFulfilled, onRejected) {
+    let res;
+
+    if (this.status === 'fulfilled') {
+      res = onFulfilled.call(null, this.value);
+    } else {
+
+      if (typeof onRejected !== 'function') {
+        return Thenable.reject(this.value);
+      }
+
+      res = onRejected.call(null, this.value);
+    }
+
+    return Thenable.resolve(res);
+  }
 }
+
+
+function seqIter(elem, iter) {
+  return [elem, ...iter].values();
+}
+
+
+const number = seq(
+  opt(pattern(/-/, {name: 'NumberSign'})),
+
+  takeWhile(/\d/, {name: 'IntPart'}),
+
+  opt(seq(tag('.'), takeWhile(/\d/, {name: 'DecPart'}))),
+
+  opt(seq(pattern(/e/i), opt(tag('-', {name: 'ExpSign'})), takeWhile(/\d/, {name: 'ExpValue'})))
+);
+
+const string = seq(
+  pattern(/"/, {name: 'OpenQuotMark'}),
+
+  opt(takeWhile(/[^"\n\r\t\b\f\v]+/, {name: 'Value'})),
+
+  pattern(/"/, {name: 'CloseQuotMark'})
+);
+
+const array = seq(
+  pattern(/\[/, {name: 'OpenSqBracket'}),
+
+  opt(
+
+  ),
+
+  pattern(/]/, {name: 'CloseSqBracket'}),
+);
+
+const literal = seq(
+
+);
